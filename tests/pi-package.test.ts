@@ -61,6 +61,8 @@ describe("pi package extension", () => {
   test("registers factory slash commands when loaded as an extension", async () => {
     const result = await getCommandsForExtension(join(process.cwd(), "extensions", "factory.ts"));
     expect(result.exit.code, result.stderr).toBe(0);
-    expect(result.commandNames).toEqual(expect.arrayContaining(["factory", "factory-status", "factory-open", "factory-doctor", "factory-ping"]));
+    expect(result.commandNames).toEqual(
+      expect.arrayContaining(["factory", "factory-status", "factory-open", "factory-stop", "factory-purge", "factory-doctor", "factory-ping"])
+    );
   }, 30000);
 });

@@ -73,28 +73,65 @@ export async function getExtendedSession(input: { baseUrl: string; authKey: stri
   return readResponse(res);
 }
 
-export async function puppetPingThread(input: { baseUrl: string; authKey: string; namespace: string; sessionId: string }) {
-  const threadRes = await fetch(`${input.baseUrl}/api/v1/puppet/${input.namespace}/${input.sessionId}/planner/thread`, {
+export async function puppetCreateThread(input: {
+  baseUrl: string;
+  authKey: string;
+  namespace: string;
+  sessionId: string;
+  senderName: string;
+  threadName: string;
+  participantNames: string[];
+}) {
+  const threadRes = await fetch(`${input.baseUrl}/api/v1/puppet/${input.namespace}/${input.sessionId}/${input.senderName}/thread`, {
     method: "POST",
     headers: headers(input.authKey),
     body: JSON.stringify({
-      threadName: "factory wiring ping",
-      participantNames: ["architect", "implementer", "reviewer"]
+      threadName: input.threadName,
+      participantNames: input.participantNames
     })
   });
-  const threadBody = (await readResponse(threadRes)) as { thread: { id: string } };
-  const threadId = threadBody.thread.id;
-  const messageRes = await fetch(`${input.baseUrl}/api/v1/puppet/${input.namespace}/${input.sessionId}/planner/thread/message`, {
+  return (await readResponse(threadRes)) as { thread: { id: string; name?: string } };
+}
+
+export async function puppetSendThreadMessage(input: {
+  baseUrl: string;
+  authKey: string;
+  namespace: string;
+  sessionId: string;
+  senderName: string;
+  threadId: string;
+  content: string;
+  mentions: string[];
+}) {
+  const messageRes = await fetch(`${input.baseUrl}/api/v1/puppet/${input.namespace}/${input.sessionId}/${input.senderName}/thread/message`, {
     method: "POST",
     headers: headers(input.authKey),
     body: JSON.stringify({
-      threadId,
-      content: "ping: Coral session, Puppet API, and blackboard mirror are wired.",
-      mentions: ["implementer"]
+      threadId: input.threadId,
+      content: input.content,
+      mentions: input.mentions
     })
+  });
+  return readResponse(messageRes);
+}
+
+export async function puppetPingThread(input: { baseUrl: string; authKey: string; namespace: string; sessionId: string }) {
+  const threadBody = await puppetCreateThread({
+    ...input,
+    senderName: "planner",
+    threadName: "factory wiring ping",
+    participantNames: ["architect", "implementer", "reviewer"]
+  });
+  const threadId = threadBody.thread.id;
+  const message = await puppetSendThreadMessage({
+    ...input,
+    senderName: "planner",
+    threadId,
+    content: "ping: Coral session, Puppet API, and blackboard mirror are wired.",
+    mentions: ["implementer"]
   });
   return {
     thread: threadBody.thread,
-    message: await readResponse(messageRes)
+    message
   };
 }

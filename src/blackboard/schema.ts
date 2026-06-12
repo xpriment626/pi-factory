@@ -113,6 +113,30 @@ CREATE TABLE IF NOT EXISTS agent_logs (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS code_evidence (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL,
+  ticket_id TEXT,
+  agent_id TEXT NOT NULL,
+  path TEXT NOT NULL,
+  action TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS command_evidence (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL,
+  ticket_id TEXT,
+  agent_id TEXT NOT NULL,
+  command TEXT NOT NULL,
+  cwd TEXT NOT NULL,
+  exit_code INTEGER,
+  stdout TEXT NOT NULL,
+  stderr TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_tickets_project_status ON tickets(project_id, status, priority);
 CREATE INDEX IF NOT EXISTS idx_ticket_events_ticket ON ticket_events(ticket_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_factory_runs_status ON factory_runs(status, started_at);
@@ -122,4 +146,6 @@ CREATE INDEX IF NOT EXISTS idx_coral_messages_run ON coral_messages(run_id, crea
 CREATE INDEX IF NOT EXISTS idx_coral_messages_thread ON coral_messages(thread_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_agent_logs_run ON agent_logs(run_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_agents_run ON agents(run_id, updated_at);
+CREATE INDEX IF NOT EXISTS idx_code_evidence_run ON code_evidence(run_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_command_evidence_run ON command_evidence(run_id, created_at);
 `;

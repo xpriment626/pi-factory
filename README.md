@@ -36,6 +36,14 @@ FACTORY_RUN_ID=<runId> npm run dev
 
 Use this after `npm run coral:test` when you want the live mirrored Coral events visible in the operator view.
 
+From Pi, clear throwaway factory state with an explicit confirmation:
+
+```text
+/factory-purge delete factory data
+```
+
+This stops the recorded gateway process if one is running, then deletes the repo-local `.factory/` directory containing run SQLite databases, Coral configs/logs, Pi session captures, and gateway state. Running `/factory-purge` without the confirmation string prints the warning and does not delete anything.
+
 ## Verification
 
 ```sh

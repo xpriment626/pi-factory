@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { FACTORY_PURGE_CONFIRMATION, purgeFactoryDataStores } from "../src/conductor/factory-data.js";
 import { runFactory } from "../src/conductor/factory-loop.js";
 import { signalRecordedGatewaySync, startGatewayArchive, stopRecordedGateway } from "../src/conductor/gateway-process.js";
 
@@ -131,6 +132,21 @@ export default function factoryExtension(pi: ExtensionAPI) {
     handler: async (_args, ctx) => {
       const result = await stopRecordedGateway(factoryRoot);
       ctx.ui.notify(result.message, result.stopped ? "info" : "warning");
+    }
+  });
+
+  pi.registerCommand("factory-purge", {
+    description: "Delete all local pi-factory saved data after explicit confirmation",
+    handler: async (args, ctx) => {
+      const confirmation = args.trim();
+      const result = await purgeFactoryDataStores(factoryRoot, confirmation);
+      ctx.ui.notify(
+        result.message,
+        result.purged ? "info" : "warning"
+      );
+      if (!result.purged) {
+        ctx.ui.notify(`This deletes .factory runs, blackboard SQLite files, Coral configs/logs, Pi session captures, and gateway state. Confirmation required: ${FACTORY_PURGE_CONFIRMATION}`, "warning");
+      }
     }
   });
 

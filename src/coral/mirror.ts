@@ -20,32 +20,59 @@ export async function mirrorCoralEvents(input: {
   const events: unknown[] = [];
 
   return await new Promise<{ url: string; events: unknown[] }>((resolve, reject) => {
-    const timeout = setTimeout(() => {
+    let settled = false;
+    let afterOpenDone = !input.afterOpen;
+    let eventGoalMet = false;
+    let timedOut = false;
+
+    const finishIfReady = () => {
+      if (settled || !afterOpenDone || (!eventGoalMet && !timedOut)) return;
+      settled = true;
+      clearTimeout(timeout);
       ws.close();
       resolve({ url, events });
+    };
+
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      finishIfReady();
     }, input.timeoutMs ?? 10000);
 
     ws.on("message", (data) => {
+      if (settled) return;
       const event = JSON.parse(data.toString("utf8")) as Record<string, unknown>;
       events.push(event);
       const normalized = normalizeCoralEvent(input.runId, input.sessionId, event);
       persistNormalizedCoralEvent(input.board, normalized);
       if (events.length >= (input.minEvents ?? 1)) {
-        clearTimeout(timeout);
-        ws.close();
-        resolve({ url, events });
+        eventGoalMet = true;
+        finishIfReady();
       }
     });
     ws.on("error", (error) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timeout);
       reject(error);
     });
     ws.on("open", () => {
-      Promise.resolve(input.afterOpen?.()).catch((error) => {
-        clearTimeout(timeout);
-        ws.close();
-        reject(error);
-      });
+      Promise.resolve(input.afterOpen?.())
+        .then(() => {
+          afterOpenDone = true;
+          finishIfReady();
+        })
+        .catch((error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          ws.close();
+          reject(error);
+        });
+    });
+    ws.on("close", () => {
+      if (settled) return;
+      timedOut = true;
+      finishIfReady();
     });
   });
 }

@@ -5,6 +5,8 @@ import { createRequire } from "node:module";
 import { schemaSql } from "./schema.js";
 import type {
   AgentState,
+  CodeEvidence,
+  CommandEvidence,
   AgentLog,
   CoralMessage,
   CoralThread,
@@ -139,6 +141,30 @@ const agentStateFromRow = (row: DbRow): AgentState => ({
   lastSeenAt: String(row.last_seen_at)
 });
 
+const codeEvidenceFromRow = (row: DbRow): CodeEvidence => ({
+  id: String(row.id),
+  runId: String(row.run_id),
+  ticketId: row.ticket_id == null ? null : String(row.ticket_id),
+  agentId: String(row.agent_id),
+  path: String(row.path),
+  action: String(row.action),
+  summary: String(row.summary),
+  createdAt: String(row.created_at)
+});
+
+const commandEvidenceFromRow = (row: DbRow): CommandEvidence => ({
+  id: String(row.id),
+  runId: String(row.run_id),
+  ticketId: row.ticket_id == null ? null : String(row.ticket_id),
+  agentId: String(row.agent_id),
+  command: String(row.command),
+  cwd: String(row.cwd),
+  exitCode: row.exit_code == null ? null : Number(row.exit_code),
+  stdout: String(row.stdout),
+  stderr: String(row.stderr),
+  createdAt: String(row.created_at)
+});
+
 export class Blackboard {
   readonly db: DatabaseSyncType;
 
@@ -156,6 +182,7 @@ export class Blackboard {
     if (!ticketColumns.has("collaborator_agents_json")) {
       this.db.exec("ALTER TABLE tickets ADD COLUMN collaborator_agents_json TEXT NOT NULL DEFAULT '[]'");
     }
+    this.db.exec(schemaSql);
   }
 
   close() {
@@ -558,6 +585,93 @@ export class Blackboard {
     return log;
   }
 
+  recordCodeEvidence(input: {
+    runId: string;
+    ticketId?: string | null;
+    agentId: string;
+    path: string;
+    action: string;
+    summary: string;
+  }): CodeEvidence {
+    const evidence: CodeEvidence = {
+      id: randomUUID(),
+      runId: input.runId,
+      ticketId: input.ticketId ?? null,
+      agentId: input.agentId,
+      path: input.path,
+      action: input.action,
+      summary: input.summary,
+      createdAt: now()
+    };
+    this.db
+      .prepare(
+        `INSERT INTO code_evidence
+        (id, run_id, ticket_id, agent_id, path, action, summary, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(evidence.id, evidence.runId, evidence.ticketId, evidence.agentId, evidence.path, evidence.action, evidence.summary, evidence.createdAt);
+    if (evidence.ticketId) this.touch("ticket", evidence.ticketId, evidence.agentId, `code:${evidence.action}`);
+    this.recordAgentState({
+      runId: evidence.runId,
+      agentId: evidence.agentId,
+      status: "code-evidence",
+      summary: `${evidence.action} ${evidence.path}`,
+      metadata: { ticketId: evidence.ticketId, path: evidence.path, action: evidence.action }
+    });
+    return evidence;
+  }
+
+  recordCommandEvidence(input: {
+    runId: string;
+    ticketId?: string | null;
+    agentId: string;
+    command: string;
+    cwd: string;
+    exitCode: number | null;
+    stdout: string;
+    stderr: string;
+  }): CommandEvidence {
+    const evidence: CommandEvidence = {
+      id: randomUUID(),
+      runId: input.runId,
+      ticketId: input.ticketId ?? null,
+      agentId: input.agentId,
+      command: input.command,
+      cwd: input.cwd,
+      exitCode: input.exitCode,
+      stdout: input.stdout,
+      stderr: input.stderr,
+      createdAt: now()
+    };
+    this.db
+      .prepare(
+        `INSERT INTO command_evidence
+        (id, run_id, ticket_id, agent_id, command, cwd, exit_code, stdout, stderr, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        evidence.id,
+        evidence.runId,
+        evidence.ticketId,
+        evidence.agentId,
+        evidence.command,
+        evidence.cwd,
+        evidence.exitCode,
+        evidence.stdout,
+        evidence.stderr,
+        evidence.createdAt
+      );
+    if (evidence.ticketId) this.touch("ticket", evidence.ticketId, evidence.agentId, `command:${evidence.command}`);
+    this.recordAgentState({
+      runId: evidence.runId,
+      agentId: evidence.agentId,
+      status: evidence.exitCode === 0 ? "command-pass" : "command-fail",
+      summary: `${evidence.command} exited ${evidence.exitCode}`,
+      metadata: { ticketId: evidence.ticketId, command: evidence.command, cwd: evidence.cwd }
+    });
+    return evidence;
+  }
+
   listCoralTimeline(runId?: string): CoralTimelineEvent[] {
     const query = runId
       ? this.db.prepare("SELECT * FROM coral_events WHERE run_id = ? ORDER BY created_at ASC")
@@ -588,6 +702,18 @@ export class Blackboard {
     );
   }
 
+  listCodeEvidence(runId: string): CodeEvidence[] {
+    return (this.db.prepare("SELECT * FROM code_evidence WHERE run_id = ? ORDER BY created_at ASC").all(runId) as DbRow[]).map(
+      codeEvidenceFromRow
+    );
+  }
+
+  listCommandEvidence(runId: string): CommandEvidence[] {
+    return (this.db.prepare("SELECT * FROM command_evidence WHERE run_id = ? ORDER BY created_at ASC").all(runId) as DbRow[]).map(
+      commandEvidenceFromRow
+    );
+  }
+
   getDashboard(runId: string): Dashboard {
     const run = this.getRun(runId);
     const kanban = this.listKanban(run.projectId ?? undefined);
@@ -599,7 +725,9 @@ export class Blackboard {
       threads: this.listCoralThreads(runId),
       messages: this.listCoralMessages(runId),
       logs: this.listAgentLogs(runId),
-      agents: this.listAgents(runId)
+      agents: this.listAgents(runId),
+      codeEvidence: this.listCodeEvidence(runId),
+      commandEvidence: this.listCommandEvidence(runId)
     };
   }
 }

@@ -46,8 +46,23 @@ describe("factory loop", () => {
       expect(tickets.length).toBeGreaterThanOrEqual(4);
       expect(tickets.some((ticket) => ticket.collaboratorAgents.includes("reviewer"))).toBe(true);
       expect(dashboard.threads.length).toBeGreaterThanOrEqual(1);
-      expect(dashboard.messages.length).toBeGreaterThanOrEqual(1);
+      expect(dashboard.messages.map((message) => message.senderAgent)).toEqual(expect.arrayContaining(["planner", "implementer", "reviewer"]));
+      expect(dashboard.messages.length).toBeGreaterThanOrEqual(3);
+      expect(dashboard.codeEvidence.some((evidence) => evidence.agentId === "implementer" && evidence.path === "package.json")).toBe(true);
+      expect(dashboard.commandEvidence.map((evidence) => evidence.agentId)).toEqual(expect.arrayContaining(["reviewer"]));
+      expect(dashboard.commandEvidence.some((evidence) => evidence.command.includes("npm test") && evidence.exitCode === 0)).toBe(true);
       expect(dashboard.logs.some((log) => log.level === "complete")).toBe(true);
+      const completion = dashboard.logs.find((log) => log.level === "complete");
+      expect(completion?.data).toMatchObject({
+        completionGate: {
+          passed: true,
+          evidence: {
+            implementerCodeEvidence: expect.any(Number),
+            passingCommands: expect.any(Number),
+            reviewerEvents: expect.any(Number)
+          }
+        }
+      });
       board.close();
     } finally {
       rmSync(targetDir, { recursive: true, force: true });

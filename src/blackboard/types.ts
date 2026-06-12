@@ -94,6 +94,30 @@ export type AgentLog = {
   createdAt: string;
 };
 
+export type CodeEvidence = {
+  id: string;
+  runId: string;
+  ticketId: string | null;
+  agentId: string;
+  path: string;
+  action: string;
+  summary: string;
+  createdAt: string;
+};
+
+export type CommandEvidence = {
+  id: string;
+  runId: string;
+  ticketId: string | null;
+  agentId: string;
+  command: string;
+  cwd: string;
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  createdAt: string;
+};
+
 export type AgentState = {
   runId: string;
   agentId: string;
@@ -115,6 +139,8 @@ export type Dashboard = {
   messages: CoralMessage[];
   logs: AgentLog[];
   agents: AgentState[];
+  codeEvidence: CodeEvidence[];
+  commandEvidence: CommandEvidence[];
 };
 
 export type RunArchiveEntry = {
