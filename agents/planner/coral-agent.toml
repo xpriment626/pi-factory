@@ -1,0 +1,15 @@
+edition = 4
+
+[agent]
+name = "factory-planner"
+version = "0.1.0"
+description = "Planner agent for the local Pi factory wiring demo. It owns ticket breakdown and coordination intent."
+summary = "Local factory planner"
+readme = "Local-only demo agent launched by Coral for pi-factory wiring tests."
+keywords = ["factory", "planner", "local"]
+license = { type = "text", text = "MIT" }
+
+[runtimes.executable]
+transport = "streamable_http"
+path = "node"
+arguments = ["../../worker/pi-coral-worker.mjs", "--role", "planner"]

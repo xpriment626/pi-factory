@@ -1,0 +1,47 @@
+{
+  "name": "pi-factory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "scripts": {
+    "check:node": "node -e \"const major=Number(process.versions.node.split('.')[0]); if (major < 24) { console.error('pi-factory requires Node 24+ because it uses node:sqlite. Run with the same Node 24 environment as pi. Current: '+process.version); process.exit(1); }\"",
+    "predev": "npm run check:node",
+    "dev": "tsx src/conductor/dev.ts",
+    "prebuild": "npm run check:node",
+    "build": "tsc --noEmit && vite build",
+    "pretest": "npm run check:node",
+    "test": "vitest run --config vitest.config.ts",
+    "presmoke": "npm run check:node",
+    "smoke": "tsx tests/smoke.ts",
+    "precoral:test": "npm run check:node",
+    "coral:test": "tsx tests/coral-live.ts",
+    "prepi:ping": "npm run check:node",
+    "pi:ping": "tsx tests/pi-live.ts",
+    "prepi:doctor": "npm run check:node",
+    "pi:doctor": "tsx tests/pi-doctor.ts"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.1.2",
+    "svelte": "^4.2.19",
+    "vite": "^5.4.21",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^1.6.1"
+  }
+}

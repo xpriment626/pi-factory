@@ -1,0 +1,15 @@
+edition = 4
+
+[agent]
+name = "factory-implementer"
+version = "0.1.0"
+description = "Implementer agent for the local Pi factory wiring demo. It represents code execution and artifact production."
+summary = "Local factory implementer"
+readme = "Local-only demo agent launched by Coral for pi-factory wiring tests."
+keywords = ["factory", "implementer", "local"]
+license = { type = "text", text = "MIT" }
+
+[runtimes.executable]
+transport = "streamable_http"
+path = "node"
+arguments = ["../../worker/pi-coral-worker.mjs", "--role", "implementer"]
