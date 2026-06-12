@@ -1,5 +1,14 @@
 import { describe, expect, test } from "vitest";
-import type { CodeEvidence, CommandEvidence, CoralMessage, CoralThread, Ticket, TicketEvent } from "../src/blackboard/types.js";
+import type {
+  ArchitectureBrief,
+  CodeEvidence,
+  CommandEvidence,
+  CoralMessage,
+  CoralThread,
+  ReviewVerdict,
+  Ticket,
+  TicketEvent
+} from "../src/blackboard/types.js";
 import { evaluateCoordinationGate, evaluateFactoryCompletionGate } from "../src/conductor/coordination-gate.js";
 
 const thread: CoralThread = {
@@ -8,7 +17,7 @@ const thread: CoralThread = {
   sessionId: "session-coordination",
   name: "Implementation review",
   creatorAgent: "planner",
-  participants: ["planner", "implementer", "reviewer"],
+  participants: ["planner", "architect", "implementer", "reviewer"],
   state: {},
   createdAt: "2026-06-12T00:00:00.000Z",
   updatedAt: "2026-06-12T00:00:00.000Z"
@@ -44,20 +53,32 @@ const validMessages = [
   message({
     id: "m1",
     senderAgent: "planner",
-    mentions: ["implementer", "reviewer"],
-    body: "Please implement the generated app and review completion evidence."
+    mentions: ["architect"],
+    body: "Please create the architecture brief before implementation starts."
   }),
   message({
     id: "m2",
-    senderAgent: "implementer",
-    mentions: ["planner"],
-    body: "Implemented files are present and npm install/build/test passed."
+    senderAgent: "architect",
+    mentions: ["implementer"],
+    body: "Architecture brief is ready. Use a local HTTP API, JSON persistence, and a browser UI."
   }),
   message({
     id: "m3",
+    senderAgent: "implementer",
+    mentions: ["architect", "reviewer"],
+    body: "ready_for_review: implemented files are present and npm install/build/test passed."
+  }),
+  message({
+    id: "m4",
+    senderAgent: "architect",
+    mentions: ["implementer", "reviewer"],
+    body: "green: actual files match the architecture brief and no blocking risks remain."
+  }),
+  message({
+    id: "m5",
     senderAgent: "reviewer",
-    mentions: ["planner", "implementer"],
-    body: "Reviewed the evidence and accepted the runnable app."
+    mentions: ["implementer", "architect"],
+    body: "green: reviewed the evidence and accepted the runnable app."
   })
 ];
 
@@ -76,7 +97,17 @@ const codeEvidence: CodeEvidence[] = [
     path: "package.json",
     action: "created",
     summary: "Created package manifest.",
-    createdAt: "2026-06-12T00:00:00.000Z"
+    createdAt: "2026-06-12T00:01:00.000Z"
+  }
+];
+
+const architectureBriefs: ArchitectureBrief[] = [
+  {
+    id: "brief-1",
+    runId: "run-coordination",
+    agentId: "architect",
+    body: "Use a local HTTP API, JSON persistence, and browser UI. Check input validation and no secret handling.",
+    createdAt: "2026-06-12T00:00:30.000Z"
   }
 ];
 
@@ -115,6 +146,27 @@ const reviewerEvents: TicketEvent[] = [
     eventType: "verification",
     body: "npm test passed and app is accepted.",
     createdAt: "2026-06-12T00:00:00.000Z"
+  }
+];
+
+const greenVerdicts: ReviewVerdict[] = [
+  {
+    id: "verdict-architect",
+    runId: "run-coordination",
+    cycle: 1,
+    agentId: "architect",
+    verdict: "green",
+    body: "Actual files match the architecture brief.",
+    createdAt: "2026-06-12T00:02:00.000Z"
+  },
+  {
+    id: "verdict-reviewer",
+    runId: "run-coordination",
+    cycle: 1,
+    agentId: "reviewer",
+    verdict: "green",
+    body: "Build and test evidence pass.",
+    createdAt: "2026-06-12T00:02:30.000Z"
   }
 ];
 
@@ -172,8 +224,10 @@ describe("coordination gate", () => {
       messages: validMessages,
       tickets: doneTickets,
       ticketEvents: reviewerEvents,
+      architectureBriefs,
       codeEvidence: [],
-      commandEvidence: passingCommands
+      commandEvidence: passingCommands,
+      reviewVerdicts: greenVerdicts
     });
 
     expect(result.passed).toBe(false);
@@ -186,8 +240,10 @@ describe("coordination gate", () => {
       messages: validMessages,
       tickets: doneTickets,
       ticketEvents: reviewerEvents,
+      architectureBriefs,
       codeEvidence,
-      commandEvidence: [{ ...passingCommands[0]!, exitCode: 1, stderr: "test failed" }]
+      commandEvidence: [{ ...passingCommands[0]!, exitCode: 1, stderr: "test failed" }],
+      reviewVerdicts: greenVerdicts
     });
 
     expect(result.passed).toBe(false);
@@ -201,8 +257,10 @@ describe("coordination gate", () => {
       messages: validMessages,
       tickets: doneTickets,
       ticketEvents: reviewerEvents,
+      architectureBriefs,
       codeEvidence,
-      commandEvidence: [passingCommands[1]!]
+      commandEvidence: [passingCommands[1]!],
+      reviewVerdicts: greenVerdicts
     });
 
     expect(result.passed).toBe(false);
@@ -215,19 +273,116 @@ describe("coordination gate", () => {
       messages: validMessages,
       tickets: doneTickets,
       ticketEvents: reviewerEvents,
+      architectureBriefs,
       codeEvidence,
-      commandEvidence: passingCommands
+      commandEvidence: passingCommands,
+      reviewVerdicts: greenVerdicts
     });
 
     expect(result.passed).toBe(true);
-    expect(result.responders).toEqual(["implementer", "reviewer"]);
+    expect(result.responders).toEqual(["architect", "reviewer"]);
     expect(result.evidence).toMatchObject({
       doneTickets: 3,
+      architectureBriefs: 1,
       implementerCodeEvidence: 1,
       passingCommands: 2,
       passingBuildCommands: 1,
       passingTestCommands: 1,
-      reviewerEvents: 1
+      reviewerEvents: 1,
+      greenReviewVerdicts: 2,
+      invalidCoralMessages: 0
     });
+  });
+
+  test("rejects completion when persisted Coral messages mention non-participants", () => {
+    const result = evaluateFactoryCompletionGate({
+      threads: [{ ...thread, participants: ["planner", "implementer", "reviewer"] }],
+      messages: validMessages,
+      tickets: doneTickets,
+      ticketEvents: reviewerEvents,
+      architectureBriefs,
+      codeEvidence,
+      commandEvidence: passingCommands,
+      reviewVerdicts: greenVerdicts
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.evidence.invalidCoralMessages).toBeGreaterThan(0);
+    expect(result.reasons).toContain("Some Coral messages reference agents outside their thread participants.");
+  });
+
+  test("rejects completion without an architect brief before implementation evidence", () => {
+    const result = evaluateFactoryCompletionGate({
+      threads: [thread],
+      messages: validMessages,
+      tickets: doneTickets,
+      ticketEvents: reviewerEvents,
+      architectureBriefs: [{ ...architectureBriefs[0]!, createdAt: "2026-06-12T00:03:00.000Z" }],
+      codeEvidence,
+      commandEvidence: passingCommands,
+      reviewVerdicts: greenVerdicts
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain("No architect brief was recorded before implementation evidence.");
+  });
+
+  test("rejects completion without implementer ready_for_review in the review thread", () => {
+    const result = evaluateFactoryCompletionGate({
+      threads: [thread],
+      messages: validMessages.filter((item) => item.id !== "m3"),
+      tickets: doneTickets,
+      ticketEvents: reviewerEvents,
+      architectureBriefs,
+      codeEvidence,
+      commandEvidence: passingCommands,
+      reviewVerdicts: greenVerdicts
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain("No implementer ready_for_review message was recorded.");
+  });
+
+  test("rejects completion when review replies are one-sided", () => {
+    const result = evaluateFactoryCompletionGate({
+      threads: [thread],
+      messages: validMessages.filter((item) => item.senderAgent !== "architect" || item.id === "m2"),
+      tickets: doneTickets,
+      ticketEvents: reviewerEvents,
+      architectureBriefs,
+      codeEvidence,
+      commandEvidence: passingCommands,
+      reviewVerdicts: greenVerdicts
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain("No review thread has implementer ready_for_review plus architect and reviewer replies.");
+  });
+
+  test("rejects completion when the latest review cycle has unresolved changes requested", () => {
+    const result = evaluateFactoryCompletionGate({
+      threads: [thread],
+      messages: validMessages,
+      tickets: doneTickets,
+      ticketEvents: reviewerEvents,
+      architectureBriefs,
+      codeEvidence,
+      commandEvidence: passingCommands,
+      reviewVerdicts: [
+        ...greenVerdicts,
+        {
+          id: "verdict-architect-2",
+          runId: "run-coordination",
+          cycle: 2,
+          agentId: "architect",
+          verdict: "changes_requested",
+          body: "Input validation is incomplete.",
+          createdAt: "2026-06-12T00:03:00.000Z"
+        }
+      ]
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.reasons).toContain("Latest review cycle has unresolved changes_requested verdicts.");
   });
 });

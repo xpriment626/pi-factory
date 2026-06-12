@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { schemaSql } from "./schema.js";
 import type {
   AgentState,
+  ArchitectureBrief,
   CodeEvidence,
   CommandEvidence,
   AgentLog,
@@ -15,6 +16,8 @@ import type {
   FactoryRun,
   Kanban,
   Project,
+  ReviewVerdict,
+  ReviewVerdictValue,
   Ticket,
   TicketEvent,
   TicketStatus
@@ -162,6 +165,24 @@ const commandEvidenceFromRow = (row: DbRow): CommandEvidence => ({
   exitCode: row.exit_code == null ? null : Number(row.exit_code),
   stdout: String(row.stdout),
   stderr: String(row.stderr),
+  createdAt: String(row.created_at)
+});
+
+const architectureBriefFromRow = (row: DbRow): ArchitectureBrief => ({
+  id: String(row.id),
+  runId: String(row.run_id),
+  agentId: String(row.agent_id),
+  body: String(row.body),
+  createdAt: String(row.created_at)
+});
+
+const reviewVerdictFromRow = (row: DbRow): ReviewVerdict => ({
+  id: String(row.id),
+  runId: String(row.run_id),
+  cycle: Number(row.cycle),
+  agentId: String(row.agent_id),
+  verdict: String(row.verdict) as ReviewVerdictValue,
+  body: String(row.body),
   createdAt: String(row.created_at)
 });
 
@@ -672,6 +693,58 @@ export class Blackboard {
     return evidence;
   }
 
+  recordArchitectureBrief(input: { runId: string; agentId: string; body: string }): ArchitectureBrief {
+    const brief: ArchitectureBrief = {
+      id: randomUUID(),
+      runId: input.runId,
+      agentId: input.agentId,
+      body: input.body,
+      createdAt: now()
+    };
+    this.db
+      .prepare("INSERT INTO architecture_briefs (id, run_id, agent_id, body, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run(brief.id, brief.runId, brief.agentId, brief.body, brief.createdAt);
+    this.recordAgentState({
+      runId: brief.runId,
+      agentId: brief.agentId,
+      role: "architect",
+      status: "architecture-brief",
+      summary: brief.body.slice(0, 220),
+      metadata: { briefId: brief.id }
+    });
+    return brief;
+  }
+
+  recordReviewVerdict(input: {
+    runId: string;
+    cycle: number;
+    agentId: string;
+    verdict: ReviewVerdictValue;
+    body: string;
+  }): ReviewVerdict {
+    const verdict: ReviewVerdict = {
+      id: randomUUID(),
+      runId: input.runId,
+      cycle: input.cycle,
+      agentId: input.agentId,
+      verdict: input.verdict,
+      body: input.body,
+      createdAt: now()
+    };
+    this.db
+      .prepare("INSERT INTO review_verdicts (id, run_id, cycle, agent_id, verdict, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(verdict.id, verdict.runId, verdict.cycle, verdict.agentId, verdict.verdict, verdict.body, verdict.createdAt);
+    this.recordAgentState({
+      runId: verdict.runId,
+      agentId: verdict.agentId,
+      role: verdict.agentId,
+      status: `review-${verdict.verdict}`,
+      summary: verdict.body.slice(0, 220),
+      metadata: { verdictId: verdict.id, cycle: verdict.cycle, verdict: verdict.verdict }
+    });
+    return verdict;
+  }
+
   listCoralTimeline(runId?: string): CoralTimelineEvent[] {
     const query = runId
       ? this.db.prepare("SELECT * FROM coral_events WHERE run_id = ? ORDER BY created_at ASC")
@@ -714,6 +787,18 @@ export class Blackboard {
     );
   }
 
+  listArchitectureBriefs(runId: string): ArchitectureBrief[] {
+    return (this.db.prepare("SELECT * FROM architecture_briefs WHERE run_id = ? ORDER BY created_at ASC").all(runId) as DbRow[]).map(
+      architectureBriefFromRow
+    );
+  }
+
+  listReviewVerdicts(runId: string): ReviewVerdict[] {
+    return (this.db.prepare("SELECT * FROM review_verdicts WHERE run_id = ? ORDER BY cycle ASC, created_at ASC").all(runId) as DbRow[]).map(
+      reviewVerdictFromRow
+    );
+  }
+
   getDashboard(runId: string): Dashboard {
     const run = this.getRun(runId);
     const kanban = this.listKanban(run.projectId ?? undefined);
@@ -727,7 +812,9 @@ export class Blackboard {
       logs: this.listAgentLogs(runId),
       agents: this.listAgents(runId),
       codeEvidence: this.listCodeEvidence(runId),
-      commandEvidence: this.listCommandEvidence(runId)
+      commandEvidence: this.listCommandEvidence(runId),
+      architectureBriefs: this.listArchitectureBriefs(runId),
+      reviewVerdicts: this.listReviewVerdicts(runId)
     };
   }
 }

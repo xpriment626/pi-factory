@@ -47,6 +47,25 @@ describe("factory evidence persistence", () => {
         stdout: "Smoke passed",
         stderr: ""
       });
+      board.recordArchitectureBrief({
+        runId: "run-evidence",
+        agentId: "architect",
+        body: "Use a small local HTTP API and JSON persistence. Review validation and file layout before green-lighting."
+      });
+      board.recordReviewVerdict({
+        runId: "run-evidence",
+        cycle: 1,
+        agentId: "architect",
+        verdict: "green",
+        body: "Architecture review passed against actual files."
+      });
+      board.recordReviewVerdict({
+        runId: "run-evidence",
+        cycle: 1,
+        agentId: "reviewer",
+        verdict: "green",
+        body: "Build and tests passed."
+      });
 
       const dashboard = board.getDashboard("run-evidence");
       expect(dashboard.codeEvidence).toHaveLength(1);
@@ -61,6 +80,13 @@ describe("factory evidence persistence", () => {
         command: "npm test",
         exitCode: 0
       });
+      expect(dashboard.architectureBriefs).toHaveLength(1);
+      expect(dashboard.architectureBriefs[0]).toMatchObject({
+        agentId: "architect",
+        body: expect.stringContaining("HTTP API")
+      });
+      expect(dashboard.reviewVerdicts).toHaveLength(2);
+      expect(dashboard.reviewVerdicts.map((item) => item.agentId)).toEqual(["architect", "reviewer"]);
       board.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });

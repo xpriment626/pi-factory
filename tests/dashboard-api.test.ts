@@ -66,6 +66,18 @@ describe("dashboard API", () => {
         message: "Review started",
         data: { ticketId: ticket.id }
       });
+      board.recordArchitectureBrief({
+        runId: "run-dashboard",
+        agentId: "architect",
+        body: "Architecture brief persisted for the gateway."
+      });
+      board.recordReviewVerdict({
+        runId: "run-dashboard",
+        cycle: 1,
+        agentId: "architect",
+        verdict: "green",
+        body: "Architecture green."
+      });
 
       const server = await createApiServer({ board, runId: "run-dashboard", port: 0 });
       servers.push(server);
@@ -77,6 +89,8 @@ describe("dashboard API", () => {
       expect(dashboard.threads[0].name).toBe("Final review");
       expect(dashboard.messages[0].body).toContain("review");
       expect(dashboard.logs[0].agentId).toBe("reviewer");
+      expect(dashboard.architectureBriefs[0].body).toContain("Architecture brief");
+      expect(dashboard.reviewVerdicts[0]).toMatchObject({ agentId: "architect", verdict: "green" });
       board.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });

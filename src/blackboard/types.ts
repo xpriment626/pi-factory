@@ -118,6 +118,26 @@ export type CommandEvidence = {
   createdAt: string;
 };
 
+export type ArchitectureBrief = {
+  id: string;
+  runId: string;
+  agentId: string;
+  body: string;
+  createdAt: string;
+};
+
+export type ReviewVerdictValue = "green" | "changes_requested";
+
+export type ReviewVerdict = {
+  id: string;
+  runId: string;
+  cycle: number;
+  agentId: string;
+  verdict: ReviewVerdictValue;
+  body: string;
+  createdAt: string;
+};
+
 export type AgentState = {
   runId: string;
   agentId: string;
@@ -141,6 +161,8 @@ export type Dashboard = {
   agents: AgentState[];
   codeEvidence: CodeEvidence[];
   commandEvidence: CommandEvidence[];
+  architectureBriefs: ArchitectureBrief[];
+  reviewVerdicts: ReviewVerdict[];
 };
 
 export type RunArchiveEntry = {

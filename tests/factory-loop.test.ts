@@ -46,9 +46,21 @@ describe("factory loop", () => {
       expect(tickets.length).toBeGreaterThanOrEqual(4);
       expect(tickets.some((ticket) => ticket.collaboratorAgents.includes("reviewer"))).toBe(true);
       expect(dashboard.threads.length).toBeGreaterThanOrEqual(1);
-      expect(dashboard.messages.map((message) => message.senderAgent)).toEqual(expect.arrayContaining(["planner", "implementer", "reviewer"]));
-      expect(dashboard.messages.length).toBeGreaterThanOrEqual(3);
+      expect(dashboard.threads.find((thread) => thread.name === "Architecture handoff")?.participants).toEqual(
+        expect.arrayContaining(["planner", "architect", "implementer"])
+      );
+      expect(dashboard.messages.map((message) => message.senderAgent)).toEqual(
+        expect.arrayContaining(["planner", "architect", "implementer", "reviewer"])
+      );
+      expect(dashboard.messages.some((message) => message.senderAgent === "implementer" && message.body.includes("ready_for_review"))).toBe(true);
+      expect(dashboard.messages.length).toBeGreaterThanOrEqual(5);
+      expect(dashboard.architectureBriefs).toHaveLength(1);
+      expect(dashboard.architectureBriefs[0].agentId).toBe("architect");
+      expect(dashboard.reviewVerdicts.map((verdict) => `${verdict.agentId}:${verdict.verdict}`)).toEqual(
+        expect.arrayContaining(["architect:green", "reviewer:green"])
+      );
       expect(dashboard.codeEvidence.some((evidence) => evidence.agentId === "implementer" && evidence.path === "package.json")).toBe(true);
+      expect(dashboard.architectureBriefs[0].createdAt < dashboard.codeEvidence.find((evidence) => evidence.agentId === "implementer")!.createdAt).toBe(true);
       expect(dashboard.commandEvidence.map((evidence) => evidence.agentId)).toEqual(expect.arrayContaining(["reviewer"]));
       expect(dashboard.commandEvidence.some((evidence) => evidence.command.includes("npm test") && evidence.exitCode === 0)).toBe(true);
       expect(dashboard.logs.some((log) => log.level === "complete")).toBe(true);
@@ -57,9 +69,12 @@ describe("factory loop", () => {
         completionGate: {
           passed: true,
           evidence: {
+            architectureBriefs: 1,
             implementerCodeEvidence: expect.any(Number),
             passingCommands: expect.any(Number),
-            reviewerEvents: expect.any(Number)
+            reviewerEvents: expect.any(Number),
+            greenReviewVerdicts: 2,
+            invalidCoralMessages: 0
           }
         }
       });

@@ -137,6 +137,24 @@ CREATE TABLE IF NOT EXISTS command_evidence (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS architecture_briefs (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS review_verdicts (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL,
+  cycle INTEGER NOT NULL,
+  agent_id TEXT NOT NULL,
+  verdict TEXT NOT NULL CHECK (verdict IN ('green', 'changes_requested')),
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_tickets_project_status ON tickets(project_id, status, priority);
 CREATE INDEX IF NOT EXISTS idx_ticket_events_ticket ON ticket_events(ticket_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_factory_runs_status ON factory_runs(status, started_at);
@@ -148,4 +166,6 @@ CREATE INDEX IF NOT EXISTS idx_agent_logs_run ON agent_logs(run_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_agents_run ON agents(run_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_code_evidence_run ON code_evidence(run_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_command_evidence_run ON command_evidence(run_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_architecture_briefs_run ON architecture_briefs(run_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_review_verdicts_run_cycle ON review_verdicts(run_id, cycle, created_at);
 `;
