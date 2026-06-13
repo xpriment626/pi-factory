@@ -294,6 +294,41 @@ describe("coordination gate", () => {
     });
   });
 
+  test("accepts review replies inserted after ready_for_review even when timestamps match", () => {
+    const result = evaluateFactoryCompletionGate({
+      threads: [thread],
+      messages: [
+        message({
+          id: "z-ready",
+          senderAgent: "implementer",
+          mentions: ["architect", "reviewer"],
+          body: "ready_for_review: implementation is complete and build/test evidence is attached."
+        }),
+        message({
+          id: "a-architect",
+          senderAgent: "architect",
+          mentions: ["implementer", "reviewer"],
+          body: "green: reviewed files after ready_for_review and architecture requirements are satisfied."
+        }),
+        message({
+          id: "b-reviewer",
+          senderAgent: "reviewer",
+          mentions: ["implementer", "architect"],
+          body: "green: reviewed tests after ready_for_review and verification passes."
+        })
+      ],
+      tickets: doneTickets,
+      ticketEvents: reviewerEvents,
+      architectureBriefs,
+      codeEvidence,
+      commandEvidence: passingCommands,
+      reviewVerdicts: greenVerdicts
+    });
+
+    expect(result.passed).toBe(true);
+    expect(result.responders).toEqual(["architect", "reviewer"]);
+  });
+
   test("rejects completion when persisted Coral messages mention non-participants", () => {
     const result = evaluateFactoryCompletionGate({
       threads: [{ ...thread, participants: ["planner", "implementer", "reviewer"] }],

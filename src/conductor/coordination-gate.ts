@@ -35,7 +35,7 @@ export type FactoryCompletionGateResult = CoordinationGateResult & {
 const REQUIRED_RESPONDERS = 2;
 
 function byCreatedAt(a: CoralMessage, b: CoralMessage) {
-  return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
+  return a.createdAt.localeCompare(b.createdAt);
 }
 
 function meaningful(message: CoralMessage) {
@@ -127,7 +127,8 @@ function evaluateReviewThreadGate(input: { threads: CoralThread[]; messages: Cor
     if (!ready) continue;
     foundReadyForReview = true;
 
-    const afterReady = messages.filter((message) => byCreatedAt(message, ready) > 0);
+    const readyIndex = messages.findIndex((message) => message.id === ready.id);
+    const afterReady = readyIndex < 0 ? [] : messages.slice(readyIndex + 1);
     const responders = ["architect", "reviewer"].filter((agentId) =>
       afterReady.some((message) => message.senderAgent === agentId && meaningful(message))
     );

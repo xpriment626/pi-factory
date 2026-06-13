@@ -20,6 +20,12 @@ Install dependencies:
 npm install
 ```
 
+Build the TypeScript and UI bundle:
+
+```sh
+npm run build
+```
+
 Run the local operator view:
 
 ```sh
@@ -35,6 +41,72 @@ FACTORY_RUN_ID=<runId> npm run dev
 ```
 
 Use this after `npm run coral:test` when you want the live mirrored Coral events visible in the operator view.
+
+## Local Pi extension workflow
+
+The extension is local-only. It does not need a marketplace package and can be loaded from this checkout.
+
+Install it for only the current project:
+
+```sh
+pi install -l . --approve
+```
+
+Install it into user settings so Pi sessions started from other directories can see it:
+
+```sh
+pi install . --approve
+```
+
+If you run the command from the parent `Research-Desk` directory, pass the project folder instead:
+
+```sh
+pi install -l ./pi-factory --approve
+```
+
+After editing this checkout, refresh the installed package entry. Run this from the same path style you used for install:
+
+```sh
+pi update . --extensions --approve
+# or, from Research-Desk:
+pi update ./pi-factory --extensions --approve
+```
+
+Confirm Pi can see the extension:
+
+```sh
+pi list --approve
+```
+
+The extension registers these slash commands:
+
+- `/factory <goal text or @PRD.md>` starts a factory run in the current working directory, prints the `runId` and gateway URL, then prints completion logs when the run ends.
+- `/factory-open` starts the archive gateway for all saved runs.
+- `/factory-stop` stops the recorded archive gateway process.
+- `/factory-status` prints where local runs are stored.
+- `/factory-purge delete factory data` deletes repo-local `.factory/` state after the exact confirmation string.
+- `/factory-doctor` checks Pi/OpenRouter auth wiring without printing secrets.
+- `/factory-ping` runs a live model ping through the inherited Pi/OpenRouter config.
+
+Typical end-to-end local test:
+
+```sh
+mkdir -p ../tmp-factory-testing/readme-smoke
+cd ../tmp-factory-testing/readme-smoke
+cat > PRD.md <<'EOF'
+# Tiny App
+Build a small local web app with one page, one API route, and one test.
+EOF
+pi
+```
+
+Then run this inside Pi:
+
+```text
+/factory complete the app described in @PRD.md
+```
+
+Open the printed gateway URL while the run is active. Use `/factory-open` later to browse archived runs.
 
 From Pi, clear throwaway factory state with an explicit confirmation:
 

@@ -1,5 +1,6 @@
 <script>
   import { onDestroy } from "svelte";
+  import { displayPath, redactedText, richTextHtml, threadLabel } from "./display";
   import { nextCollapsedSpaces, toggleCollapsedSpace } from "./sidebar-state";
 
   const lanes = [
@@ -74,7 +75,7 @@
   }
 
   function shortPath(path) {
-    return path?.split("/").filter(Boolean).slice(-2).join("/") || "workspace";
+    return displayPath(path).split("/").filter(Boolean).slice(-2).join("/") || "workspace";
   }
 
   function formatDate(value) {
@@ -114,7 +115,7 @@
       messages,
       latestLog,
       status: persisted?.status ?? latestLog?.level ?? (messages.length ? "communicating" : "observed"),
-      summary: persisted?.summary ?? latestLog?.message ?? messages.at(-1)?.body ?? "No persisted agent activity yet."
+      summary: redactedText(persisted?.summary ?? latestLog?.message ?? messages.at(-1)?.body ?? "No persisted agent activity yet.")
     };
   }
 
@@ -210,7 +211,7 @@
               <span class="chevron" aria-hidden="true"></span>
               <span class="space-title">
                 <strong>{shortPath(space.targetDir)}</strong>
-                <small>{space.targetDir}</small>
+                <small>{displayPath(space.targetDir)}</small>
               </span>
               <span class="space-count">{space.runs.length}</span>
             </button>
@@ -276,7 +277,7 @@
               <section class="archive-space">
                 <header>
                   <h4>{shortPath(space.targetDir)}</h4>
-                  <p>{space.targetDir}</p>
+                  <p>{displayPath(space.targetDir)}</p>
                 </header>
                 <div class="archive-runs">
                   {#each space.runs as run}
@@ -306,7 +307,7 @@
             <div class="page-heading">
               <div>
                 <p class="eyebrow">Lifecycle board</p>
-                <h3>{dashboard.run.targetDir}</h3>
+                <h3>{displayPath(dashboard.run.targetDir)}</h3>
               </div>
               <span>{filteredTickets.length} visible</span>
             </div>
@@ -324,7 +325,7 @@
                         <button class="ticket-card" class:active={selectedTicket?.id === ticket.id} on:click={() => (selectedTicketId = ticket.id)}>
                           <span>{ticket.ownerAgent ?? "unowned"}</span>
                           <strong>{ticket.title}</strong>
-                          <p>{ticket.description}</p>
+                          <p>{redactedText(ticket.description)}</p>
                           <small>{ticket.collaboratorAgents.join(", ") || "solo"}</small>
                         </button>
                       {:else}
@@ -345,18 +346,18 @@
             {#if selectedTicket}
               <article class="ticket-detail">
                 <h3>{selectedTicket.title}</h3>
-                <p>{selectedTicket.description}</p>
+                <p>{redactedText(selectedTicket.description)}</p>
                 <dl class="detail-list">
                   <dt>Owner</dt><dd>{selectedTicket.ownerAgent ?? "unowned"}</dd>
                   <dt>Collaborators</dt><dd>{selectedTicket.collaboratorAgents.join(", ") || "none"}</dd>
-                  <dt>Acceptance</dt><dd>{selectedTicket.acceptanceCriteria}</dd>
+                  <dt>Acceptance</dt><dd>{redactedText(selectedTicket.acceptanceCriteria)}</dd>
                 </dl>
                 <div class="activity-block">
                   <h4>Activity</h4>
                   {#each ticketEvents as event}
                     <article>
                       <span>{event.agentId} / {event.eventType}</span>
-                      <p>{event.body}</p>
+                      <div class="rich-text compact">{@html richTextHtml(event.body)}</div>
                     </article>
                   {:else}
                     <p class="empty">No ticket events yet.</p>
@@ -367,7 +368,7 @@
                   {#each relatedCoral(selectedTicket).slice(0, 5) as event}
                     <article>
                       <span>{event.eventType} / {event.agentId ?? "server"}</span>
-                      <p>{event.body}</p>
+                      <div class="rich-text compact">{@html richTextHtml(event.body)}</div>
                     </article>
                   {:else}
                     <p class="empty">No Coral event has been attached yet.</p>
@@ -388,19 +389,21 @@
             </div>
             <span>{dashboard.messages.length} persisted messages</span>
           </div>
-          <div class="coral-grid">
-            <aside class="thread-index">
-              <h4>Threads</h4>
-              {#each dashboard.threads as thread}
-                <button class:active={selectedThread?.id === thread.id} on:click={() => (selectedThreadId = thread.id)}>
-                  <strong>{thread.name}</strong>
-                  <span>{thread.participants.join(", ") || "no participants"}</span>
-                  <small>{threadMessages(thread.id).length} messages</small>
-                </button>
-              {:else}
-                <p class="empty">No persisted Coral threads yet.</p>
-              {/each}
-            </aside>
+          <div class="coral-stack">
+            <div class="thread-picker">
+              <label for="thread-select">
+                <span>Thread</span>
+                <select id="thread-select" bind:value={selectedThreadId} disabled={!dashboard.threads.length}>
+                  {#each dashboard.threads as thread}
+                    <option value={thread.id}>{threadLabel({
+                      name: thread.name,
+                      participants: thread.participants,
+                      messageCount: threadMessages(thread.id).length
+                    })}</option>
+                  {/each}
+                </select>
+              </label>
+            </div>
             <section class="conversation">
               {#if selectedThread}
                 <header>
@@ -413,11 +416,11 @@
                 <div class="message-stack">
                   {#each threadMessages(selectedThread.id) as message}
                     <article class="message">
-                      <div>
+                      <div class="message-meta">
                         <strong>{message.senderAgent}</strong>
                         <span>{formatDate(message.createdAt)}</span>
                       </div>
-                      <p>{message.body}</p>
+                      <div class="rich-text">{@html richTextHtml(message.body)}</div>
                       {#if message.mentions.length}
                         <small>Mentions: {message.mentions.join(", ")}</small>
                       {/if}
@@ -440,7 +443,7 @@
               {#each dashboard.comms as event}
                 <article>
                   <span>{event.eventType} / {event.agentId ?? "server"} / {formatDate(event.createdAt)}</span>
-                  <p>{event.body}</p>
+                  <div class="rich-text compact">{@html richTextHtml(event.body)}</div>
                 </article>
               {:else}
                 <p class="empty">No Coral events have been mirrored yet.</p>
@@ -465,7 +468,7 @@
                   <h4>{agentId}</h4>
                   <span>{state.status}</span>
                 </header>
-                <p>{state.summary}</p>
+                <div class="rich-text compact">{@html richTextHtml(state.summary)}</div>
                 <dl>
                   <dt>Owned</dt><dd>{state.owned.length}</dd>
                   <dt>Coordinated</dt><dd>{state.collaborated.length}</dd>
@@ -494,7 +497,7 @@
                 <span>{formatDate(log.createdAt)}</span>
                 <span>{log.level}</span>
                 <strong>{log.agentId}</strong>
-                <p>{log.message}</p>
+                <p>{redactedText(log.message)}</p>
               </article>
             {:else}
               <p class="empty">No run logs yet.</p>
